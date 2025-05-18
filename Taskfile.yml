@@ -1,0 +1,36 @@
+version: "3"
+
+vars:
+  DSN: "{{.DB_CONNECTION}}://{{.DB_USER}}:{{.DB_PASSWORD}}@{{.DB_HOST}}:{{.DB_PORT}}/{{.DB_NAME}}?sslmode=disable"
+
+dotenv:
+  - ".env"
+
+tasks:
+  install:
+    cmd: go mod tidy
+  db:up:
+    cmd: docker-compose up --build
+  db:down:
+    cmd: docker-compose down -v
+  db:cli:
+    cmd: docker exec -it go-hex_postgres sh -c "psql -U {{.DB_USER}} -d {{.DB_NAME}}"
+    requires:
+      vars:
+        - DB_USER
+        - DB_NAME
+  migrate:up:
+    cmd: migrate -path ./storage/migrations -database {{.DSN}} -verbose up {{.CLI_ARGS}}
+    requires:
+      vars:
+        - DSN
+  migrate:down:
+    cmd: migrate -path ./storage/migrations -database {{.DSN}} --verbose down {{.CLI_ARGS}}
+    requires:
+      vars:
+        - DSN
+  migrate:force:
+    cmd: migrate -path ./storage/migrations -database {{.DSN}} force {{.CLI_ARGS}}
+    require:
+      vars:
+        - DSN
