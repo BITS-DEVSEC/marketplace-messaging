@@ -12,10 +12,10 @@ import (
 )
 
 type Chat struct {
-	ID           int64     `json:"id"`
-	Participants [2]int64  `json:"participants"`
-	CreatedAt    time.Time `json:"created_at"`
-	DeletedAt    time.Time `json:"updated_at"`
+	ID           int64        `json:"id"`
+	Participants [2]int64     `json:"participants"`
+	CreatedAt    time.Time    `json:"created_at"`
+	DeletedAt    sql.NullTime `json:"deleted_at"`
 }
 
 type ChatRepository struct {
@@ -50,6 +50,44 @@ func (repo *ChatRepository) CreateChat(ctx context.Context, chat *Chat) (*Chat, 
 	return chat, nil
 }
 
+func (repo *ChatRepository) GetAllUserChats(ctx context.Context, userID int64) ([]Chat, error) {
+	query := repo.db.QueryBuilder.Select("*").
+		From("chat").
+		Where("? = ANY(participants)", userID).
+		OrderBy("created_at DESC")
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := repo.db.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	chats := []Chat{}
+
+	for rows.Next() {
+		var chat Chat
+
+		err = rows.Scan(
+			&chat.ID,
+			&chat.Participants,
+			&chat.CreatedAt,
+			&chat.DeletedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		chats = append(chats, chat)
+	}
+
+	return chats, nil
+}
+
 func (repo *ChatRepository) ChatExists(ctx context.Context, participants [2]int64) (bool, error) {
 	query := repo.db.QueryBuilder.Select("*").
 		From("chat").
@@ -59,7 +97,8 @@ func (repo *ChatRepository) ChatExists(ctx context.Context, participants [2]int6
 				sq.Eq{"participants": [2]int64{participants[1], participants[0]}},
 			},
 		).
-		Limit(1)
+		Limit(1).
+		Suffix("RETURNING id, participants, created_at")
 
 	sqlStr, args, err := query.ToSql()
 	if err != nil {
@@ -71,7 +110,6 @@ func (repo *ChatRepository) ChatExists(ctx context.Context, participants [2]int6
 		&chat.ID,
 		&chat.Participants,
 		&chat.CreatedAt,
-		&chat.DeletedAt,
 	)
 	if err == sql.ErrNoRows {
 		return false, nil

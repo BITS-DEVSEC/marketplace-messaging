@@ -36,12 +36,71 @@ func NewApp(chatRepo *repository.ChatRepository, messageRepo *repository.Message
 }
 
 func (app *App) Run() {
+	app.router.GET("/chats/:userID", app.GetUserChats)
 	app.router.GET("/connect/:id", app.Connect)
 	app.router.POST("/create-chat", app.CreateChat)
+	app.router.GET("/messages/:chatID", app.GetUserMessages)
 
 	log.Println("starting server at :7007")
 
 	app.router.Run(":7007")
+}
+
+func (app *App) GetUserMessages(ctx *gin.Context) {
+	var req = struct {
+		ChatID int64 `uri:"chatID"`
+	}{}
+	if err := ctx.ShouldBindUri(&req); err != nil {
+		ctx.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+
+	messages, err := app.MessageRepo.GetChatLastMessage(ctx, req.ChatID)
+	if err != nil {
+		ctx.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"messages": messages})
+}
+
+func (app *App) GetUserChats(ctx *gin.Context) {
+	var req = struct {
+		UserID int64 `uri:"userID"`
+	}{}
+	if err := ctx.ShouldBindUri(&req); err != nil {
+		ctx.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+
+	chats, err := app.ChatRepo.GetAllUserChats(ctx, req.UserID)
+	if err != nil {
+		ctx.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+
+	type chatResponse struct {
+		Chat        *repository.Chat    `json:"chat"`
+		LastMessage *repository.Message `json:"last_message"`
+	}
+
+	var response []chatResponse
+
+	for _, chat := range chats {
+		msg, err := app.MessageRepo.GetChatLastMessage(ctx, chat.ID)
+		if err != nil {
+			log.Printf("failed to fetch last message for chat %d: %v", chat.ID, err)
+			continue
+		}
+
+		resp := chatResponse{
+			&chat,
+			msg,
+		}
+		response = append(response, resp)
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"response": response})
 }
 
 func (app *App) CreateChat(ctx *gin.Context) {
@@ -77,15 +136,11 @@ func (app *App) Connect(ctx *gin.Context) {
 	defer conn.Close()
 
 	app.ConnPool[req.ID] = conn
-	log.Println(app.ConnPool)
 
 	stop := make(chan bool)
 
 	go app.readMessage(conn, stop)
-	// go app.sendMessage(conn)
-
-	// go app.ProcessMessage(conn, message)
-	if <-stop { // Blocks until a bool is received
+	if <-stop {
 		return
 	}
 }
@@ -117,38 +172,9 @@ func (app *App) readMessage(conn *websocket.Conn, stop chan bool) {
 			log.Println("there is a connection")
 			go app.sendMessage(connection, &msg)
 		}
-
 	}
 }
 
 func (app *App) sendMessage(conn *websocket.Conn, msg *repository.Message) {
 	conn.WriteJSON(msg)
 }
-
-// func (app *App) ProcessMessage(conn *websocket.Conn, data []byte) {
-// 	var msg repository.Message
-
-// 	err := json.Unmarshal(data, &msg)
-// 	if err != nil {
-// 		return
-// 	}
-
-// 	_, err = app.MessageRepo.CreateMessage(context.Background(), &msg)
-// 	if err != nil {
-// 		conn.WriteMessage(websocket.TextMessage, []byte(err.Error()))
-// 		return
-// 	}
-
-// 	log.Println(msg)
-
-// 	// conn.WriteJSON(msg)
-
-// 	// conn.WriteMessage(websocket.TextMessage, []byte(msgs.Content))
-
-// 	// live update
-// 	if connection, ok := app.ConnPool[msg.To]; ok {
-// 		log.Println("there is a connection")
-// 		connection.WriteMessage(websocket.TextMessage, []byte("hi there 102"))
-// 		connection.WriteJSON(msg)
-// 	}
-// }

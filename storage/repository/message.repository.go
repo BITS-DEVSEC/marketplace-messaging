@@ -54,14 +54,41 @@ func (repo *MessageRepository) CreateMessage(ctx context.Context, msg *Message) 
 	return msg, nil
 }
 
+func (repo *MessageRepository) GetChatLastMessage(ctx context.Context, chatID int64) (*Message, error) {
+	query := repo.db.QueryBuilder.Select("*").
+		From("message").
+		Where(sq.Eq{"chat_id": chatID}).
+		OrderBy("time DESC").
+		Limit(1)
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	var msg Message
+	err = repo.db.QueryRow(ctx, sql, args...).Scan(
+		&msg.ID,
+		&msg.ChatID,
+		&msg.From,
+		&msg.To,
+		&msg.Content,
+		&msg.Time,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &msg, nil
+}
+
 func (repo *MessageRepository) GetAllMessages(ctx context.Context, chatID int64) ([]Message, error) {
 	messages := []Message{}
 	var msg Message
 
 	query := repo.db.QueryBuilder.Select("*").
 		From("message").
-		Where(sq.Eq{"chat_id": chatID}).
-		Limit(1)
+		Where(sq.Eq{"chat_id": chatID})
 
 	sql, args, err := query.ToSql()
 	if err != nil {
