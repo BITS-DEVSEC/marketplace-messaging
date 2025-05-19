@@ -1,4 +1,23 @@
 services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "7007:7007"
+    environment:
+      DB_CONNECTION: "${DB_CONNECTION}"
+      DB_HOST: "${DB_HOST}"
+      DB_PORT: "${DB_PORT}"
+      DB_NAME: "${DB_NAME}"
+      DB_USER: "${DB_USER}"
+      DB_PASSWORD: "${DB_PASSWORD}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - chat-network
+    
   postgres:
     image: postgres:16
     container_name: chat-db
@@ -15,7 +34,13 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - chat-network
 
 volumes:
   postgres_data:
     driver: local
+
+networks:
+  chat-network:
+    driver: bridge

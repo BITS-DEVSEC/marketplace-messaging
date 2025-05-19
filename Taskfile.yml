@@ -14,7 +14,7 @@ tasks:
   db:down:
     cmd: docker-compose down -v
   db:cli:
-    cmd: docker exec -it go-hex_postgres sh -c "psql -U {{.DB_USER}} -d {{.DB_NAME}}"
+    cmd: docker exec -it chat-db  sh -c "psql -U {{.DB_USER}} -d {{.DB_NAME}}"
     requires:
       vars:
         - DB_USER

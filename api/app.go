@@ -55,7 +55,7 @@ func (app *App) GetUserMessages(ctx *gin.Context) {
 		return
 	}
 
-	messages, err := app.MessageRepo.GetChatLastMessage(ctx, req.ChatID)
+	messages, err := app.MessageRepo.GetAllMessages(ctx, req.ChatID)
 	if err != nil {
 		ctx.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
