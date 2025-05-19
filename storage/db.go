@@ -4,7 +4,7 @@ import (
 	"context"
 	"embed"
 	"fmt"
-	"snipz/internal/utils"
+	"marketplace-messageing/libs"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -24,7 +24,7 @@ type DB struct {
 	url          string
 }
 
-func New(ctx context.Context, config *utils.DB) (*DB, error) {
+func New(ctx context.Context, config *libs.DB) (*DB, error) {
 	url := fmt.Sprintf("%s://%s:%s@%s:%s/%s?sslmode=disable",
 		config.Connection, config.User, config.Password, config.Host, config.Port, config.Name,
 	)

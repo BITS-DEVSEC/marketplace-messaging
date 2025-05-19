@@ -1,11 +1,15 @@
 package main
 
 import (
+	"context"
 	"log"
-	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+
+	"marketplace-messageing/api"
+	"marketplace-messageing/libs"
+	"marketplace-messageing/storage"
+	"marketplace-messageing/storage/repository"
 )
 
 var upgrader = websocket.Upgrader{
@@ -13,24 +17,34 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
+var connId = make(map[int64]*websocket.Conn)
+
 func main() {
-	router := gin.Default()
+	ctx := context.Background()
 
-	router.GET("/ws", func(c *gin.Context) {
-		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
-		if err != nil {
-			c.JSON(500, gin.H{"error": err.Error()})
-			return
-		}
-		defer conn.Close()
+	config, err := libs.NewConfig()
+	if err != nil {
+		panic(err)
+	}
 
-		for {
-			conn.WriteMessage(websocket.TextMessage, []byte("Hello websocket"))
-			time.Sleep(time.Second)
-		}
-	})
+	db, err := storage.New(ctx, config.DB)
+	if err != nil {
+		panic(err)
+	}
 
-	log.Println("starting server at :7007")
+	if err = db.Migrate(); err != nil {
+		panic(err)
+	}
 
-	router.Run(":7007")
+	log.Println("finished db setup")
+
+	chatRepo := repository.NewChatRepository(db)
+	messageRepo := repository.NewMessageRepository(db)
+
+	app, err := api.NewApp(chatRepo, messageRepo)
+	if err != nil {
+		panic(err)
+	}
+
+	app.Run()
 }
